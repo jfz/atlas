@@ -76,7 +76,7 @@ class EurekaGroupsLookupSuite extends FunSuite {
           val json = Json.encode(eurekaGroup)
           Success(HttpResponse(StatusCodes.OK, entity = json)) -> v
       }
-    val context = TestContext.createContext(mat, client)
+    val context = TestContext.createContext(mat, system, client)
     Flow[DataSources].via(new EurekaGroupsLookup(context, 5.microseconds))
   }
 

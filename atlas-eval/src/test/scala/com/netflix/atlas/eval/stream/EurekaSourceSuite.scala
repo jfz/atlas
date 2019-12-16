@@ -101,7 +101,7 @@ class EurekaSourceSuite extends FunSuite {
     val client = Flow[(HttpRequest, AccessLogger)].map {
       case (_, logger) => response -> logger
     }
-    val context = TestContext.createContext(mat, client)
+    val context = TestContext.createContext(mat, system, client)
     val future = EurekaSource(uri, context).runWith(Sink.head)
     Await.result(future, Duration.Inf)
   }

@@ -41,15 +41,9 @@ import javax.inject.Inject;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -489,26 +483,36 @@ public final class Evaluator extends EvaluatorImpl {
     ActorMaterializer mat = ActorMaterializer.create(system);
     Evaluator evaluator = new Evaluator(config, new NoopRegistry(), system);
 
-    // Process URIs
-    StreamConverters                                       // Read in URIs from stdin
-        .fromInputStream(() -> System.in)
-        .via(Framing.delimiter(ByteString.fromString("\n"), 16384))
-        .map(b -> b.decodeString(StandardCharsets.UTF_8))
-        .zipWithIndex()                                    // Use line number as id for output
-        .map(p -> new DataSource(p.second().toString(), p.first()))
-        .fold(new HashSet<DataSource>(), (vs, v) -> { vs.add(v); return vs; })
-        .map(DataSources::new)
-        .flatMapConcat(Source::repeat)                     // Repeat so stream doesn't shutdown
-        .throttle(                                         // Throttle to avoid wasting CPU
-            1, Duration.ofMinutes(1),
-            1, ThrottleMode.shaping()
-        )
-        .via(Flow.fromProcessor(evaluator::createStreamsProcessor))
-        .runForeach(
-            msg -> System.out.printf("%10s: %s%n", msg.getId(), msg.getMessage().toJson()),
-            mat
-        )
-        .toCompletableFuture()
-        .get();
+
+//    DataSource ds1 = new DataSource("id-111","http://atlas-main.eu-west-1.prod.netflix.net/api/v1/graph?q=name,aws.ec2.instance,:eq,nf.app,atlas_deploy,:eq,:and,:sum&step=1m");
+//    DataSource ds2 = new DataSource("id-222","http://atlas-main.us-east-1.prod.netflix.net/api/v1/graph?q=name,aws.ec2.instance,:eq,nf.app,atlas_deploy,:eq,:and,:sum&step=1m");
+//    DataSource ds3 = new DataSource("id-3333","http://atlas-main.us-west-1.test.netflix.net/api/v1/graph?q=name,aws.ec2.instance,:eq,nf.app,atlas_deploy,:eq,:and,:sum&step=1m");
+//    DataSource ds4 = new DataSource("id-4444","http://atlas-main.us-east-1.test.netflix.net/api/v1/graph?q=name,aws.ec2.instance,:eq,nf.app,atlas_deploy,:eq,:and,:sum&step=1m");
+
+    DataSource ds1 = new DataSource("123","http://local-dev/api/v1/graph?q=name,jvm.gc.pause,:eq,:sum&step=10s");
+    DataSources dataSources = DataSources.of(ds1);
+    Source.repeat(dataSources)
+//
+//    // Process URIs
+//    StreamConverters                                       // Read in URIs from stdin
+//        .fromInputStream(() -> System.in)
+//        .via(Framing.delimiter(ByteString.fromString("\n"), 16384))
+//        .map(b -> b.decodeString(StandardCharsets.UTF_8))
+//        .zipWithIndex()                                    // Use line number as id for output
+//        .map(p -> new DataSource(p.second().toString(), p.first()))
+//        .fold(new HashSet<DataSource>(), (vs, v) -> { vs.add(v); return vs; })
+//        .map(DataSources::new)
+//        .flatMapConcat(Source::repeat)                     // Repeat so stream doesn't shutdown
+            .throttle(                                         // Throttle to avoid wasting CPU
+                    1, Duration.ofSeconds(10000000), //TODO
+                    1, ThrottleMode.shaping()
+            )
+            .via(Flow.fromProcessor(evaluator::createStreamsProcessor))
+            .runForeach(
+                    msg -> logger.info(msg.getMessage().toJson()),
+                    mat
+            )
+            .toCompletableFuture()
+            .get();
   }
 }

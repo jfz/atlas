@@ -36,7 +36,7 @@ class TimeGroupedSuite extends FunSuite {
 
   private val registry = new DefaultRegistry()
 
-  private val context = TestContext.createContext(materializer, registry = registry)
+  private val context = TestContext.createContext(materializer, system, registry = registry)
 
   private val step = 10
 

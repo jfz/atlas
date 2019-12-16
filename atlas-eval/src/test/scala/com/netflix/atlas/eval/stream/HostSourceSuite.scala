@@ -30,6 +30,8 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers._
 import akka.stream.ActorMaterializer
 import akka.stream.KillSwitches
+import akka.stream.Supervision
+import akka.stream.ThrottleMode
 import akka.stream.scaladsl.Flow
 import akka.stream.scaladsl.Keep
 import akka.stream.scaladsl.Sink
@@ -49,6 +51,32 @@ class HostSourceSuite extends FunSuite {
 
   implicit val system = ActorSystem(getClass.getSimpleName)
   implicit val materializer = ActorMaterializer()
+  implicit val ec = system.dispatcher
+
+  test("hello") {
+    val lists = List(
+      List("a"),
+      List("a"),
+      List("a"),
+      List("a"),
+      List("a"),
+      List("c"),
+      List("c")
+    )
+
+    val done = Source(lists)
+      .throttle(1, 1.second, 1, ThrottleMode.Shaping)
+      .mapConcat(l => l)
+      .groupBy(Int.MaxValue, str => str, true)
+      .via(new MyConnection(system))
+      .idleTimeout(2.second)
+      .log("my_idle_error")
+      //.recover{case _: Exception => ""}
+      .mergeSubstreams
+      .runForeach(s => s.runForeach(println))
+
+    Await.result(done, 600.second)
+  }
 
   def source(response: => Try[HttpResponse]): Source[ByteString, NotUsed] = {
     val client = Flow[HttpRequest].map(_ => response)

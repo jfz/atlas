@@ -20,6 +20,7 @@ import java.nio.file.Paths
 import java.util.UUID
 
 import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.Uri
 import akka.stream.IOResult
@@ -50,6 +51,7 @@ private[stream] class StreamContext(
   rootConfig: Config,
   val client: Client,
   val materializer: Materializer,
+  val system: ActorSystem,
   val registry: Registry = new NoopRegistry,
   val dsLogger: DataSourceLogger = (_, _) => ()
 ) {

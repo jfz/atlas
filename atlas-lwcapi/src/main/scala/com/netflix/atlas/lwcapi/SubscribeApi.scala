@@ -158,14 +158,14 @@ class SubscribeApi @Inject()(
       .watchTermination() { (_, f) =>
         f.onComplete {
           case Success(_) =>
-            logger.debug(s"lost client for $streamId")
+            logger.info(s"lost client for $streamId")
             sm.unregister(streamId)
           case Failure(t) =>
-            logger.debug(s"lost client for $streamId", t)
+            logger.info(s"lost client for $streamId", t)
             sm.unregister(streamId)
         }
       }
-
+    logger.info(s"registered client for $streamId")
     handler -> source
   }
 

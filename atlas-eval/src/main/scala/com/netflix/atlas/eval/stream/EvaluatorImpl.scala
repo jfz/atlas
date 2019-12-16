@@ -76,6 +76,7 @@ private[stream] abstract class EvaluatorImpl(
       config,
       Http().superPool(),
       materializer,
+      system,
       registry,
       dsLogger
     )
@@ -354,7 +355,7 @@ private[stream] abstract class EvaluatorImpl(
       // Groups need to be sent to subscription step for posting the set of uris
       // we are interested in and to the stream step for maintaining the connections
       // and getting all of the data
-      val eurekaGroups = builder.add(Broadcast[SourcesAndGroups](2))
+//      val eurekaGroups = builder.add(Broadcast[SourcesAndGroups](2))
 
       // Combine the data coming from Eureka and File/Resources before performing
       // the time grouping and aggregation
@@ -371,17 +372,18 @@ private[stream] abstract class EvaluatorImpl(
         .via(context.monitorFlow("01_EurekaGroups"))
         .flatMapMerge(Int.MaxValue, s => s)
         .via(context.monitorFlow("01_EurekaRefresh"))
-      datasources.out(0).map(_.remoteOnly()) ~> eurekaLookup ~> eurekaGroups.in
-      eurekaGroups.out(0) ~> new SubscriptionManager(context)
+
+//      eurekaGroups.out(0) ~> new SubscriptionManager(context)
 
       // Streams, `GET /lwc/api/v1/stream/$id`, from each instance of the Eureka groups
       val eurekaStream = Flow[SourcesAndGroups]
-        .map(_._2)
+      //.map(_._2)
         .via(new ConnectionManager(context))
         .via(context.monitorFlow("02_ConnectionSources"))
         .flatMapMerge(Int.MaxValue, s => Source(s))
         .flatMapMerge(Int.MaxValue, s => s)
-      eurekaGroups.out(1) ~> eurekaStream ~> intermediateInput.in(0)
+
+      datasources.out(0).map(_.remoteOnly()) ~> eurekaLookup ~> eurekaStream ~> intermediateInput.in(0)
 
       // Streams for local URIs like files or resources
       val tmp = Flow[DataSources]

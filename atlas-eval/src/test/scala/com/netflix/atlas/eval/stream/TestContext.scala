@@ -15,6 +15,7 @@
  */
 package com.netflix.atlas.eval.stream
 
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.StatusCodes
@@ -59,10 +60,11 @@ object TestContext {
 
   def createContext(
     mat: ActorMaterializer,
+    system: ActorSystem,
     client: Client = defaultClient,
     registry: Registry = new NoopRegistry
   ): StreamContext = {
-    new StreamContext(config, client, mat, registry)
+    new StreamContext(config, client, mat, system, registry)
   }
 
   def defaultClient: Client = client(HttpResponse(StatusCodes.OK))

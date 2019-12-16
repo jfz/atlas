@@ -71,6 +71,7 @@ class LwcToAggrDatapointSuite extends FunSuite {
     ConfigFactory.load(),
     null,
     materializer,
+    system,
     dsLogger = (ds, msg) => logMessages.add(ds -> msg)
   )
 

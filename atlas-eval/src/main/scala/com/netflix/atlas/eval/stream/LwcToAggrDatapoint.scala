@@ -30,6 +30,7 @@ import com.netflix.atlas.eval.model.LwcDataExpr
 import com.netflix.atlas.eval.model.LwcDatapoint
 import com.netflix.atlas.eval.model.LwcDiagnosticMessage
 import com.netflix.atlas.eval.model.LwcHeartbeat
+import com.netflix.atlas.eval.model.LwcMessages
 import com.netflix.atlas.eval.model.LwcSubscription
 import com.netflix.atlas.json.Json
 import com.typesafe.scalalogging.Logger
@@ -62,19 +63,37 @@ private[stream] class LwcToAggrDatapoint(context: StreamContext)
       override def onPush(): Unit = {
         val message = grab(in)
         try {
-          message match {
-            case msg if msg.startsWith(subscribePrefix)  => updateState(msg)
-            case msg if msg.startsWith(metricDataPrefix) => pushDatapoint(msg)
-            case msg if msg.startsWith(diagnosticPrefix) => pushDiagnosticMessage(msg)
-            case msg if msg.startsWith(heartbeatPrefix)  => pushHeartbeat(msg)
-            case msg                                     => ignoreMessage(msg)
+          val messageStr = message.utf8String
+//          logger.info("                 beforeParse: " + messageStr)
+          val parsedMsg = LwcMessages.parse(messageStr)
+          parsedMsg match {
+            case sb: LwcSubscription      => updateState(sb)
+            case dp: LwcDatapoint         => pushDatapoint(dp)
+            case dg: LwcDiagnosticMessage => pushDiagnosticMessage(dg)
+            case hb: LwcHeartbeat         => pushHeartbeat(hb)
+            case any: Any                 => logAndContinue(any)
           }
+
+//          message match {
+//            case msg if msg.startsWith(subscribePrefix)  => updateState(msg)
+//            case msg if msg.startsWith(metricDataPrefix) => pushDatapoint(msg)
+//            case msg if msg.startsWith(diagnosticPrefix) => pushDiagnosticMessage(msg)
+//            case msg if msg.startsWith(heartbeatPrefix)  => pushHeartbeat(msg)
+//            case msg                                     => ignoreMessage(msg)
+//          }
         } catch {
-          case e: Exception =>
+          case e: Throwable => {
             val messageString = toString(message)
             logger.warn(s"failed to process message [$messageString]", e)
             badMessages.increment()
+          }
         }
+      }
+
+      private def logAndContinue(any: AnyRef) = {
+        //do nothing except continuing the flow processing
+        logger.info("Ignoring msg  ***** : " + any.toString)
+        pull(in)
       }
 
       private def toString(bytes: ByteString): String = {
@@ -102,9 +121,27 @@ private[stream] class LwcToAggrDatapoint(context: StreamContext)
         pull(in)
       }
 
+      private def updateState(sub: LwcSubscription): Unit = {
+        state ++= sub.metrics.map(m => m.id -> m).toMap
+        pull(in)
+      }
+
       private def pushDatapoint(msg: ByteString): Unit = {
         val json = msg.drop(metricDataPrefix.length)
         val d = Json.decode[LwcDatapoint](new ByteStringInputStream(json))
+        state.get(d.id) match {
+          case Some(sub) =>
+            // TODO, put in source, for now make it random to avoid dedup
+            nextSource += 1
+            val expr = sub.expr
+            val step = sub.step
+            push(out, AggrDatapoint(d.timestamp, step, expr, nextSource.toString, d.tags, d.value))
+          case None =>
+            pull(in)
+        }
+      }
+
+      private def pushDatapoint(d: LwcDatapoint): Unit = {
         state.get(d.id) match {
           case Some(sub) =>
             // TODO, put in source, for now make it random to avoid dedup
@@ -126,9 +163,20 @@ private[stream] class LwcToAggrDatapoint(context: StreamContext)
         pull(in)
       }
 
+      private def pushDiagnosticMessage(d: LwcDiagnosticMessage): Unit = {
+        state.get(d.id).foreach { sub =>
+          context.log(sub.expr, d.message)
+        }
+        pull(in)
+      }
+
       private def pushHeartbeat(msg: ByteString): Unit = {
         val json = msg.drop(heartbeatPrefix.length)
         val d = Json.decode[LwcHeartbeat](new ByteStringInputStream(json))
+        push(out, AggrDatapoint.heartbeat(d.timestamp, d.step))
+      }
+
+      private def pushHeartbeat(d: LwcHeartbeat): Unit = {
         push(out, AggrDatapoint.heartbeat(d.timestamp, d.step))
       }
 

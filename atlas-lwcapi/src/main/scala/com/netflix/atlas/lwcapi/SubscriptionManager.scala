@@ -201,7 +201,8 @@ class SubscriptionManager[T] extends StrictLogging {
       tags += ("nf.app" -> name.getApp)
     if (name.getStack != null)
       tags += ("nf.stack" -> name.getStack)
-    queryIndex.matchingEntries(tags.result)
+    //queryIndex.matchingEntries(tags.result)
+    queryIndex.entries.map(_.value).toList //TODO temp get all subscriptions indexed
   }
 
   /**

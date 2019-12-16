@@ -63,7 +63,9 @@ lazy val `atlas-eval` = project
     Dependencies.akkaHttpTestkit % "test",
     Dependencies.akkaStreamTestkit % "test",
     Dependencies.akkaTestkit % "test",
-    Dependencies.equalsVerifier % "test"
+    Dependencies.equalsVerifier % "test",
+    Dependencies.akkaSlf4j,
+    Dependencies.slf4jLog4j
   ))
 
 lazy val `atlas-jmh` = project
